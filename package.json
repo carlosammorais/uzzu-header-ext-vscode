@@ -1,0 +1,151 @@
+{
+  "name": "uzzu-header",
+  "displayName": "Uzzu Header",
+  "description": "Extensão para aplicar headers padronizados automaticamente em arquivos do projeto, com assinatura por contexto, badge por tipo de arquivo, autor inteligente e versão do projeto.",
+  "version": "1.8.0",
+  "publisher": "uzzu-local",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/uzzu-header"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "header",
+    "comment header",
+    "metadata",
+    "author",
+    "version",
+    "typescript",
+    "javascript",
+    "uzzu"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:uzzuHeader.applyHeader"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "uzzuHeader.applyHeader",
+        "title": "Uzzu Header: Apply Header to Current File",
+        "category": "Uzzu Header"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Uzzu Header",
+      "properties": {
+        "uzzuHeader.onSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Aplica ou atualiza o header automaticamente ao salvar o arquivo."
+        },
+        "uzzuHeader.headerStyle": {
+          "type": "string",
+          "default": "uzzu",
+          "description": "Estilo lógico do header. Atualmente mantido para compatibilidade com configurações existentes."
+        },
+        "uzzuHeader.template": {
+          "type": "array",
+          "default": [],
+          "description": "Template base do header. Suporta placeholders como ${signature}, ${badge}, ${relativePath}, ${author}, ${createdAt}, ${updatedAt} e ${version}.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uzzuHeader.useGitAuthor": {
+          "type": "boolean",
+          "default": false,
+          "description": "Tenta obter o autor a partir do Git do repositório atual e, se necessário, do Git global."
+        },
+        "uzzuHeader.author": {
+          "type": "string",
+          "default": "",
+          "description": "Autor manual. Usado como fallback quando o Git não estiver disponível, salvo se preferSettingsAuthorOverGit estiver ativado."
+        },
+        "uzzuHeader.userName": {
+          "type": "string",
+          "default": "",
+          "description": "Nome alternativo do usuário para fallback quando author estiver vazio e o Git não puder ser resolvido."
+        },
+        "uzzuHeader.preferSettingsAuthorOverGit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Quando true, usa author ou userName antes de consultar o Git."
+        },
+        "uzzuHeader.useEnvironmentAuthorFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Quando true, tenta obter o autor por variáveis de ambiente ou usuário do sistema operacional se Git e settings não estiverem disponíveis."
+        },
+        "uzzuHeader.useProjectVersion": {
+          "type": "boolean",
+          "default": false,
+          "description": "Lê a versão do projeto a partir do arquivo indicado em versionSource."
+        },
+        "uzzuHeader.versionSource": {
+          "type": "string",
+          "default": "package.json",
+          "description": "Arquivo JSON de origem da versão, relativo à raiz do workspace. Ex.: package.json."
+        },
+        "uzzuHeader.templates": {
+          "type": "array",
+          "default": [],
+          "description": "Mapa de assinaturas por caminho. Cada item aceita match (string ou array) e signature.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "uzzuHeader.badgeMap": {
+          "type": "array",
+          "default": [],
+          "description": "Mapa de badges por caminho. Cada item aceita match (string ou array) e badge.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "uzzuHeader.excludeFiles": {
+          "type": "array",
+          "default": [],
+          "description": "Lista de globs a serem ignorados pela extensão.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uzzuHeader.ignoreTestFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignora arquivos de teste, spec e diretórios __tests__."
+        },
+        "uzzuHeader.ignoreStoryFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignora arquivos *.stories.*."
+        },
+        "uzzuHeader.ignoreMockFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignora diretórios de mocks, __mocks__ e fixtures."
+        },
+        "uzzuHeader.ignoreEmptyFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignora arquivos vazios."
+        },
+        "uzzuHeader.forceHeaderOnBarrelFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Quando false, ignora barrel files como index.ts/index.js compostos somente por exports/imports."
+        }
+      }
+    }
+  }
+}
