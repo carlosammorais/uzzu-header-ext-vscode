@@ -1,8 +1,8 @@
 {
   "name": "uzzu-header",
   "displayName": "Uzzu Header",
-  "description": "Extensão para aplicar headers padronizados automaticamente em arquivos do projeto, com assinatura por contexto, badge por tipo de arquivo, autor inteligente e versão do projeto.",
-  "version": "1.8.0",
+  "description": "Extensão para aplicar headers padronizados automaticamente em arquivos do projeto, com modo seguro por linguagem, assinatura por contexto, badge por tipo de arquivo, autor inteligente e versão do projeto.",
+  "version": "1.9.0",
   "publisher": "uzzu-local",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,12 @@
     "version",
     "typescript",
     "javascript",
-    "uzzu"
+    "uzzu",
+    "safe mode",
+    "python",
+    "java",
+    "react",
+    "comments"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -144,6 +149,40 @@
           "type": "boolean",
           "default": true,
           "description": "Quando false, ignora barrel files como index.ts/index.js compostos somente por exports/imports."
+        },
+        "uzzuHeader.safeMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Quando true, aplica headers somente em linguagens suportadas e bloqueia arquivos sensíveis como .json, .md, .env, locks, imagens e configurações."
+        },
+        "uzzuHeader.maxFileSize": {
+          "type": "number",
+          "default": 50000,
+          "description": "Tamanho máximo do arquivo em caracteres para aplicação automática do header. Use 0 para desativar esse limite."
+        },
+        "uzzuHeader.allowedLanguages": {
+          "type": "array",
+          "default": [],
+          "description": "Lista opcional de languageIds permitidos. Quando vazia, usa todas as linguagens suportadas pela extensão.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uzzuHeader.excludeExtensions": {
+          "type": "array",
+          "default": [],
+          "description": "Lista opcional de extensões bloqueadas. Quando vazia, usa a lista segura padrão da extensão. Ex.: .md, .json, .env.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uzzuHeader.excludeFileNames": {
+          "type": "array",
+          "default": [],
+          "description": "Lista opcional de nomes de arquivos bloqueados. Quando vazia, usa a lista segura padrão da extensão. Ex.: package.json, README.md, LICENSE.",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

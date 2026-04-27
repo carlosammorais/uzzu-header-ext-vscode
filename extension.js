@@ -4,6 +4,86 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 
+const EXTENSION_VERSION = '1.9.0';
+
+const DEFAULT_BLOCKED_EXTENSIONS = [
+    '.md',
+    '.json',
+    '.jsonc',
+    '.lock',
+    '.env',
+    '.yml',
+    '.yaml',
+    '.toml',
+    '.xml',
+    '.svg',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+    '.gif',
+    '.ico',
+    '.pdf',
+    '.zip',
+    '.rar',
+    '.7z',
+    '.mp3',
+    '.mp4',
+    '.mov',
+    '.avi',
+    '.woff',
+    '.woff2',
+    '.ttf',
+    '.otf'
+];
+
+const DEFAULT_BLOCKED_FILE_NAMES = [
+    'package.json',
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    'tsconfig.json',
+    'jsconfig.json',
+    'app.json',
+    'README.md',
+    'CHANGELOG.md',
+    'LICENSE',
+    '.gitignore',
+    '.npmrc',
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.production'
+];
+
+const COMMENT_STYLES = {
+    typescript: { type: 'line', start: '//' },
+    typescriptreact: { type: 'line', start: '//' },
+    javascript: { type: 'line', start: '//' },
+    javascriptreact: { type: 'line', start: '//' },
+    python: { type: 'line', start: '#' },
+    java: { type: 'line', start: '//' },
+    csharp: { type: 'line', start: '//' },
+    cpp: { type: 'line', start: '//' },
+    c: { type: 'line', start: '//' },
+    go: { type: 'line', start: '//' },
+    rust: { type: 'line', start: '//' },
+    php: { type: 'line', start: '//' },
+    dart: { type: 'line', start: '//' },
+    kotlin: { type: 'line', start: '//' },
+    swift: { type: 'line', start: '//' },
+    ruby: { type: 'line', start: '#' },
+    shellscript: { type: 'line', start: '#' },
+    powershell: { type: 'line', start: '#' },
+    dockerfile: { type: 'line', start: '#' },
+    css: { type: 'block', start: '/*', linePrefix: ' * ', end: ' */' },
+    scss: { type: 'block', start: '/*', linePrefix: ' * ', end: ' */' },
+    sass: { type: 'block', start: '/*', linePrefix: ' * ', end: ' */' },
+    less: { type: 'block', start: '/*', linePrefix: ' * ', end: ' */' },
+    html: { type: 'block', start: '<!--', linePrefix: '  ', end: '-->' },
+    vue: { type: 'block', start: '<!--', linePrefix: '  ', end: '-->' }
+};
+
 function getConfig() {
     return vscode.workspace.getConfiguration('uzzuHeader');
 }
@@ -39,7 +119,7 @@ function matchesGlob(relativePath, pattern) {
         .replace(/\*/g, '[^/]*')
         .replace(/::DOUBLE_STAR::/g, '.*');
 
-    const regex = new RegExp(`^${escaped}$`);
+    const regex = new RegExp(`^${escaped}$`, 'i');
     return regex.test(relativePath);
 }
 
@@ -156,6 +236,45 @@ function getProjectVersion(document, config) {
     return '';
 }
 
+function getCommentStyle(document, config) {
+    const languageId = document.languageId;
+    const allowedLanguages = config.get('allowedLanguages') || [];
+
+    if (Array.isArray(allowedLanguages) && allowedLanguages.length > 0 && !allowedLanguages.includes(languageId)) {
+        return null;
+    }
+
+    return COMMENT_STYLES[languageId] || null;
+}
+
+function getConfiguredBlockedExtensions(config) {
+    const configured = config.get('excludeExtensions');
+    if (!Array.isArray(configured) || configured.length === 0) {
+        return DEFAULT_BLOCKED_EXTENSIONS;
+    }
+
+    return configured.map((item) => String(item).toLowerCase().trim()).filter(Boolean);
+}
+
+function getConfiguredBlockedFileNames(config) {
+    const configured = config.get('excludeFileNames');
+    if (!Array.isArray(configured) || configured.length === 0) {
+        return DEFAULT_BLOCKED_FILE_NAMES;
+    }
+
+    return configured.map((item) => String(item).toLowerCase().trim()).filter(Boolean);
+}
+
+function isBlockedByExtension(document, config) {
+    const ext = path.extname(document.fileName).toLowerCase();
+    return getConfiguredBlockedExtensions(config).includes(ext);
+}
+
+function isBlockedByFileName(document, config) {
+    const fileName = path.basename(document.fileName).toLowerCase();
+    return getConfiguredBlockedFileNames(config).includes(fileName);
+}
+
 function isBarrelFile(document) {
     const ext = path.extname(document.fileName).toLowerCase();
     const fileName = path.basename(document.fileName).toLowerCase();
@@ -187,14 +306,27 @@ function isBarrelFile(document) {
 }
 
 function shouldIgnoreFile(document, config) {
-    const filePath = normalizePath(document.fileName);
+    const filePath = normalizePath(document.fileName).toLowerCase();
     const relativePath = getRelativePath(document);
     const fileName = path.basename(filePath);
 
-    if (filePath.includes('uzzu-header')) return true;
-    if (fileName === 'package.json') return true;
-    if (fileName === 'extension.js') return true;
-    if (filePath.endsWith('.json')) return true;
+    if (document.uri.scheme !== 'file') return true;
+
+    const maxFileSize = Number(config.get('maxFileSize') || 50000);
+    if (maxFileSize > 0 && document.getText().length > maxFileSize) return true;
+
+    if (filePath.includes('/node_modules/')) return true;
+    if (filePath.includes('/dist/')) return true;
+    if (filePath.includes('/build/')) return true;
+    if (filePath.includes('/coverage/')) return true;
+
+    if (filePath.includes('uzzu-header') && fileName === 'extension.js') return true;
+
+    if (config.get('safeMode') !== false) {
+        if (!getCommentStyle(document, config)) return true;
+        if (isBlockedByExtension(document, config)) return true;
+        if (isBlockedByFileName(document, config)) return true;
+    }
 
     const excludeFiles = config.get('excludeFiles') || [];
     if (matchesAny(relativePath, excludeFiles)) return true;
@@ -227,14 +359,33 @@ function shouldIgnoreFile(document, config) {
     return false;
 }
 
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function removeExistingHeaders(text) {
     let result = text;
 
-    const blockHeaderRegex = /^\/\/ ==================================================\r?\n(?:\/\/.*\r?\n)*\/\/ ==================================================\r?\n*/;
-    result = result.replace(blockHeaderRegex, '');
+    const linePrefixes = ['//', '#'];
+    for (const prefix of linePrefixes) {
+        const escapedPrefix = escapeRegExp(prefix);
+        const fullHeaderRegex = new RegExp(
+            `^${escapedPrefix} ==================================================\\r?\\n(?:${escapedPrefix}.*\\r?\\n)*${escapedPrefix} ==================================================\\r?\\n*`,
+            'm'
+        );
+        result = result.replace(fullHeaderRegex, '');
 
-    const singleHeaderRegex = /^\/\/ \[Uzzu[^\n]*\n*/;
-    result = result.replace(singleHeaderRegex, '');
+        const singleHeaderRegex = new RegExp(`^${escapedPrefix} \\[Uzzu[^\\n]*\\n*`, 'm');
+        result = result.replace(singleHeaderRegex, '');
+    }
+
+    const cssBlockHeaderRegex = /^\/\*\s*\r?\n(?:\s*\*?.*\r?\n)*?\s*\*?\s*==================================================\s*\r?\n\s*\*\/\s*\r?\n*/m;
+    result = result.replace(cssBlockHeaderRegex, '');
+
+    const htmlBlockHeaderRegex = /^<!--[\s\S]*?-->\s*\r?\n*/m;
+    result = result.replace(htmlBlockHeaderRegex, (match) => {
+        return match.includes('[Uzzu]') || match.includes('Arquivo:') ? '' : match;
+    });
 
     return result;
 }
@@ -244,8 +395,19 @@ function getToday() {
 }
 
 function getCreatedAtFromText(text) {
-    const match = text.match(/\/\/ Criado em:\s*(.+)/);
-    return match ? match[1].trim() : '';
+    const patterns = [
+        /\/\/\s*Criado em:\s*(.+)/,
+        /#\s*Criado em:\s*(.+)/,
+        /\*\s*Criado em:\s*(.+)/,
+        /\s*Criado em:\s*(.+)/
+    ];
+
+    for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) return match[1].trim();
+    }
+
+    return '';
 }
 
 function fillTemplateLine(line, vars) {
@@ -259,7 +421,56 @@ function fillTemplateLine(line, vars) {
         .replace(/\$\{version\}/g, vars.version);
 }
 
+function stripKnownCommentPrefix(line) {
+    return String(line)
+        .replace(/^\s*\/\/\s?/, '')
+        .replace(/^\s*#\s?/, '')
+        .replace(/^\s*\/\*\s?/, '')
+        .replace(/^\s*\*\s?/, '')
+        .replace(/^\s*<!--\s?/, '')
+        .replace(/\s*\*\/\s*$/, '')
+        .replace(/\s*-->\s*$/, '');
+}
+
+function wrapHeaderLines(lines, style) {
+    if (style.type === 'line') {
+        return lines.map((line) => `${style.start} ${line}`.trimEnd()).join('\n') + '\n\n';
+    }
+
+    const linePrefix = style.linePrefix || '';
+    return [
+        style.start,
+        ...lines.map((line) => `${linePrefix}${line}`.trimEnd()),
+        style.end,
+        ''
+    ].join('\n');
+}
+
+function getTemplateLines(document, config, vars) {
+    const customTemplate = config.get('template') || [];
+
+    if (Array.isArray(customTemplate) && customTemplate.length > 0) {
+        return customTemplate
+            .map((line) => fillTemplateLine(stripKnownCommentPrefix(line), vars))
+            .filter((line) => line.trim() !== '');
+    }
+
+    return [
+        '==================================================',
+        `${vars.signature}• ${vars.badge}`,
+        `Arquivo: ${vars.relativePath}`,
+        `Autor: ${vars.author}`,
+        `Criado em: ${vars.createdAt}`,
+        `Atualizado em: ${vars.updatedAt}`,
+        `Versão: ${vars.version}`,
+        '=================================================='
+    ];
+}
+
 function buildHeader(document, originalText, config) {
+    const style = getCommentStyle(document, config);
+    if (!style) return '';
+
     const relativePath = getRelativePath(document);
     const signature = getSignature(relativePath, config);
     const badge = getBadge(relativePath, config);
@@ -278,22 +489,8 @@ function buildHeader(document, originalText, config) {
         version
     };
 
-    const template = config.get('template') || [];
-    if (Array.isArray(template) && template.length > 0) {
-        return template.map((line) => fillTemplateLine(line, vars)).join('\n') + '\n';
-    }
-
-    return [
-        '// ==================================================',
-        `// ${signature}• ${badge}`,
-        `// Arquivo: ${relativePath}`,
-        `// Autor: ${author}`,
-        `// Criado em: ${createdAt}`,
-        `// Atualizado em: ${updatedAt}`,
-        `// Versão: ${version}`,
-        '// ==================================================',
-        ''
-    ].join('\n');
+    const lines = getTemplateLines(document, config, vars);
+    return wrapHeaderLines(lines, style);
 }
 
 async function applyHeader(document) {
@@ -302,8 +499,10 @@ async function applyHeader(document) {
     if (shouldIgnoreFile(document, config)) return;
 
     const originalText = document.getText();
-    const bodyWithoutHeader = removeExistingHeaders(originalText).trimStart();
     const header = buildHeader(document, originalText, config);
+    if (!header) return;
+
+    const bodyWithoutHeader = removeExistingHeaders(originalText).trimStart();
     const finalText = `${header}${bodyWithoutHeader}`;
 
     if (finalText === originalText) return;
@@ -319,7 +518,7 @@ async function applyHeader(document) {
 }
 
 function activate(context) {
-    console.log('Uzzu Header v1.8.0 ativo 🚀');
+    console.log(`Uzzu Header v${EXTENSION_VERSION} ativo 🚀`);
 
     const disposable = vscode.commands.registerCommand('uzzuHeader.applyHeader', async () => {
         const editor = vscode.window.activeTextEditor;
